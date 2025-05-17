@@ -119,7 +119,7 @@ func WithTimerPrecision(precision time.Duration) Option {
 	}
 }
 
-// WithPacketSerializer customizes the packet serializer to automatically
+// WithPacketCodec customizes the packet serializer to automatically
 // handle packet encoding and decoding.
 //
 // TODO(warning): If a custom packet parser is used with WithPacketCodec, then
