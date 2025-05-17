@@ -6,6 +6,7 @@ import (
 
 	"github.com/lonng/nano/cluster"
 	"github.com/lonng/nano/component"
+	"github.com/lonng/nano/frame"
 	"github.com/lonng/nano/internal/env"
 	"github.com/lonng/nano/internal/log"
 	"github.com/lonng/nano/internal/message"
@@ -115,6 +116,17 @@ func WithTimerPrecision(precision time.Duration) Option {
 	}
 	return func(_ *cluster.Options) {
 		env.TimerPrecision = precision
+	}
+}
+
+// WithPacketSerializer customizes the packet serializer to automatically
+// handle packet encoding and decoding.
+//
+// TODO(warning): If a custom packet parser is used with WithPacketCodec, then
+// the WithDictionary option will become ineffective.
+func WithPacketCodec(codec frame.PacketCodec) Option {
+	return func(opt *cluster.Options) {
+		opt.PacketCodec = codec
 	}
 }
 

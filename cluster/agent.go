@@ -28,6 +28,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/lonng/nano/frame"
 	"github.com/lonng/nano/internal/codec"
 	"github.com/lonng/nano/internal/env"
 	"github.com/lonng/nano/internal/log"
@@ -62,6 +63,7 @@ type (
 		chSend   chan pendingMessage // push message queue
 		lastAt   int64               // last heartbeat unix time stamp
 		decoder  *codec.Decoder      // binary decoder
+		pcodec   frame.PacketCodec
 		pipeline pipeline.Pipeline
 
 		rpcHandler rpcHandler
@@ -77,7 +79,7 @@ type (
 )
 
 // Create new agent instance
-func newAgent(conn net.Conn, pipeline pipeline.Pipeline, rpcHandler rpcHandler) *agent {
+func newAgent(conn net.Conn, pipeline pipeline.Pipeline, pcodec frame.PacketCodec, rpcHandler rpcHandler) *agent {
 	a := &agent{
 		conn:       conn,
 		state:      statusStart,
@@ -85,6 +87,7 @@ func newAgent(conn net.Conn, pipeline pipeline.Pipeline, rpcHandler rpcHandler) 
 		lastAt:     time.Now().Unix(),
 		chSend:     make(chan pendingMessage, agentWriteBacklog),
 		decoder:    codec.NewDecoder(),
+		pcodec:     pcodec,
 		pipeline:   pipeline,
 		rpcHandler: rpcHandler,
 	}
@@ -296,17 +299,27 @@ func (a *agent) write() {
 				}
 			}
 
-			em, err := m.Encode()
-			if err != nil {
-				log.Println(err.Error())
-				break
-			}
+			var p []byte
 
-			// packet encode
-			p, err := codec.Encode(packet.Data, em)
-			if err != nil {
-				log.Println(err)
-				break
+			if a.pcodec != nil {
+				p, err = a.pcodec.Encode(m)
+				if err != nil {
+					log.Println(err.Error())
+					break
+				}
+			} else {
+				em, err := m.Encode()
+				if err != nil {
+					log.Println(err.Error())
+					break
+				}
+
+				// packet encode
+				p, err = codec.Encode(packet.Data, em)
+				if err != nil {
+					log.Println(err)
+					break
+				}
 			}
 			chWrite <- p
 

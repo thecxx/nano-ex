@@ -33,6 +33,7 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/lonng/nano/cluster/clusterpb"
 	"github.com/lonng/nano/component"
+	"github.com/lonng/nano/frame"
 	"github.com/lonng/nano/internal/env"
 	"github.com/lonng/nano/internal/log"
 	"github.com/lonng/nano/internal/message"
@@ -56,6 +57,8 @@ type Options struct {
 	TSLKey             string
 	UnregisterCallback func(Member)
 	RemoteServiceRoute CustomerRemoteServiceRoute
+	// Custom packet encoder/decoder
+	PacketCodec frame.PacketCodec
 }
 
 // Node represents a node in nano cluster, which will contains a group of services.
@@ -83,7 +86,7 @@ func (n *Node) Startup() error {
 	}
 	n.sessions = map[int64]*session.Session{}
 	n.cluster = newCluster(n)
-	n.handler = NewHandler(n, n.Pipeline)
+	n.handler = NewHandler(n, n.Pipeline, n.PacketCodec)
 	components := n.Components.List()
 	for _, c := range components {
 		err := n.handler.register(c.Comp, c.Opts)

@@ -35,6 +35,7 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/lonng/nano/cluster/clusterpb"
 	"github.com/lonng/nano/component"
+	"github.com/lonng/nano/frame"
 	"github.com/lonng/nano/internal/codec"
 	"github.com/lonng/nano/internal/env"
 	"github.com/lonng/nano/internal/log"
@@ -105,15 +106,18 @@ type LocalHandler struct {
 
 	pipeline    pipeline.Pipeline
 	currentNode *Node
+	// Custom packet encoder/decoder
+	pcodec frame.PacketCodec
 }
 
-func NewHandler(currentNode *Node, pipeline pipeline.Pipeline) *LocalHandler {
+func NewHandler(currentNode *Node, pipeline pipeline.Pipeline, pcodec frame.PacketCodec) *LocalHandler {
 	h := &LocalHandler{
 		localServices:  make(map[string]*component.Service),
 		localHandlers:  make(map[string]*component.Handler),
 		remoteServices: map[string][]*clusterpb.MemberInfo{},
 		pipeline:       pipeline,
 		currentNode:    currentNode,
+		pcodec:         pcodec,
 	}
 
 	return h
@@ -201,7 +205,13 @@ func (h *LocalHandler) RemoteService() []string {
 
 func (h *LocalHandler) handle(conn net.Conn) {
 	// create a client agent and startup write gorontine
-	agent := newAgent(conn, h.pipeline, h.remoteProcess)
+	agent := newAgent(conn, h.pipeline, h.pcodec, h.remoteProcess)
+
+	// Custom packet encoder/decoder
+	if h.pcodec != nil {
+		agent.pcodec = h.pcodec
+	}
+
 	h.currentNode.storeSession(agent.session)
 
 	// startup write goroutine
@@ -251,26 +261,47 @@ func (h *LocalHandler) handle(conn net.Conn) {
 			return
 		}
 
-		// TODO(warning): decoder use slice for performance, packet data should be copy before next Decode
-		packets, err := agent.decoder.Decode(buf[:n])
-		if err != nil {
-			log.Println(err.Error())
+		if agent.pcodec != nil {
+			// Must working
+			agent.setStatus(statusWorking)
 
-			// process packets decoded
+			msgs, err := agent.pcodec.Decode(buf[:n])
+			if err != nil {
+				log.Println(err.Error())
+
+				// process message decoded
+				for _, m := range msgs {
+					h.processMessage(agent, m)
+				}
+				return
+			}
+
+			// process all message
+			for _, m := range msgs {
+				h.processMessage(agent, m)
+			}
+		} else {
+			// TODO(warning): decoder use slice for performance, packet data should be copy before next Decode
+			packets, err := agent.decoder.Decode(buf[:n])
+			if err != nil {
+				log.Println(err.Error())
+
+				// process packets decoded
+				for _, p := range packets {
+					if err := h.processPacket(agent, p); err != nil {
+						log.Println(err.Error())
+						return
+					}
+				}
+				return
+			}
+
+			// process all packets
 			for _, p := range packets {
 				if err := h.processPacket(agent, p); err != nil {
 					log.Println(err.Error())
 					return
 				}
-			}
-			return
-		}
-
-		// process all packets
-		for _, p := range packets {
-			if err := h.processPacket(agent, p); err != nil {
-				log.Println(err.Error())
-				return
 			}
 		}
 	}
