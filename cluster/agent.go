@@ -63,7 +63,7 @@ type (
 		chSend   chan pendingMessage // push message queue
 		lastAt   int64               // last heartbeat unix time stamp
 		decoder  *codec.Decoder      // binary decoder
-		pcodec   frame.PacketCodec
+		pcodec   frame.PacketProcessor
 		pipeline pipeline.Pipeline
 
 		rpcHandler rpcHandler
@@ -87,7 +87,7 @@ func newAgent(conn net.Conn, pipeline pipeline.Pipeline, pcodec frame.PacketCode
 		lastAt:     time.Now().Unix(),
 		chSend:     make(chan pendingMessage, agentWriteBacklog),
 		decoder:    codec.NewDecoder(),
-		pcodec:     pcodec,
+		pcodec:     pcodec.NewProcessor(),
 		pipeline:   pipeline,
 		rpcHandler: rpcHandler,
 	}

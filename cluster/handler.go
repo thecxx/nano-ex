@@ -207,11 +207,6 @@ func (h *LocalHandler) handle(conn net.Conn) {
 	// create a client agent and startup write gorontine
 	agent := newAgent(conn, h.pipeline, h.pcodec, h.remoteProcess)
 
-	// Custom packet encoder/decoder
-	if h.pcodec != nil {
-		agent.pcodec = h.pcodec
-	}
-
 	h.currentNode.storeSession(agent.session)
 
 	// startup write goroutine
