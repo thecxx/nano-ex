@@ -36,6 +36,7 @@ import (
 	"github.com/lonng/nano/internal/packet"
 	"github.com/lonng/nano/pipeline"
 	"github.com/lonng/nano/scheduler"
+	"github.com/lonng/nano/serialize"
 	"github.com/lonng/nano/session"
 )
 
@@ -55,16 +56,17 @@ type (
 	// Agent corresponding a user, used for store raw conn information
 	agent struct {
 		// regular agent member
-		session  *session.Session    // session
-		conn     net.Conn            // low-level conn fd
-		lastMid  uint64              // last message id
-		state    int32               // current agent state
-		chDie    chan struct{}       // wait for close
-		chSend   chan pendingMessage // push message queue
-		lastAt   int64               // last heartbeat unix time stamp
-		decoder  *codec.Decoder      // binary decoder
-		pcodec   frame.PacketProcessor
-		pipeline pipeline.Pipeline
+		session    *session.Session    // session
+		conn       net.Conn            // low-level conn fd
+		lastMid    uint64              // last message id
+		state      int32               // current agent state
+		chDie      chan struct{}       // wait for close
+		chSend     chan pendingMessage // push message queue
+		lastAt     int64               // last heartbeat unix time stamp
+		decoder    *codec.Decoder      // binary decoder
+		pcodec     frame.PacketProcessor
+		serializer serialize.Serializer
+		pipeline   pipeline.Pipeline
 
 		rpcHandler rpcHandler
 		srv        reflect.Value // cached session reflect.Value
@@ -88,6 +90,7 @@ func newAgent(conn net.Conn, pipeline pipeline.Pipeline, pcodec frame.PacketCode
 		chSend:     make(chan pendingMessage, agentWriteBacklog),
 		decoder:    codec.NewDecoder(),
 		pcodec:     pcodec.NewProcessor(),
+		serializer: pcodec.Serializer(),
 		pipeline:   pipeline,
 		rpcHandler: rpcHandler,
 	}
@@ -146,7 +149,7 @@ func (a *agent) RPC(route string, v interface{}) error {
 	}
 
 	// TODO: buffer
-	data, err := message.Serialize(v)
+	data, err := message.Serialize(v, nil)
 	if err != nil {
 		return err
 	}
@@ -271,7 +274,7 @@ func (a *agent) write() {
 			}
 
 		case data := <-a.chSend:
-			payload, err := message.Serialize(data.payload)
+			payload, err := message.Serialize(data.payload, a.serializer)
 			if err != nil {
 				switch data.typ {
 				case message.Push:

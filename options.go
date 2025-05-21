@@ -101,9 +101,16 @@ func WithDictionary(dict map[string]uint16) Option {
 	}
 }
 
-func WithWSPath(path string) Option {
-	return func(_ *cluster.Options) {
-		env.WSPath = path
+func WithWSPath(path string, codec ...frame.PacketCodec) Option {
+	return func(opt *cluster.Options) {
+		if len(codec) <= 0 {
+			env.WSPath = path
+		} else {
+			if opt.PrivateCodec == nil {
+				opt.PrivateCodec = make(map[string]frame.PacketCodec)
+			}
+			opt.PrivateCodec[path] = codec[0]
+		}
 	}
 }
 
@@ -123,7 +130,7 @@ func WithTimerPrecision(precision time.Duration) Option {
 // handle packet encoding and decoding.
 //
 // TODO(warning): If a custom packet parser is used with WithPacketCodec, then
-// the WithDictionary option will become ineffective.
+// the WithDictionary/WithHandshakeValidator option will become ineffective.
 func WithPacketCodec(codec frame.PacketCodec) Option {
 	return func(opt *cluster.Options) {
 		opt.PacketCodec = codec

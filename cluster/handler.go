@@ -43,6 +43,7 @@ import (
 	"github.com/lonng/nano/internal/packet"
 	"github.com/lonng/nano/pipeline"
 	"github.com/lonng/nano/scheduler"
+	"github.com/lonng/nano/serialize"
 	"github.com/lonng/nano/session"
 )
 
@@ -203,9 +204,13 @@ func (h *LocalHandler) RemoteService() []string {
 	return result
 }
 
-func (h *LocalHandler) handle(conn net.Conn) {
+func (h *LocalHandler) handle(conn net.Conn, pcodec frame.PacketCodec) {
+	// Select a packet codec
+	if pcodec == nil {
+		pcodec = h.pcodec
+	}
 	// create a client agent and startup write gorontine
-	agent := newAgent(conn, h.pipeline, h.pcodec, h.remoteProcess)
+	agent := newAgent(conn, h.pipeline, pcodec, h.remoteProcess)
 
 	h.currentNode.storeSession(agent.session)
 
@@ -450,20 +455,20 @@ func (h *LocalHandler) processMessage(agent *agent, msg *message.Message) {
 	if !found {
 		h.remoteProcess(agent.session, msg, false)
 	} else {
-		h.localProcess(handler, lastMid, agent.session, msg)
+		h.localProcess(handler, lastMid, agent.session, agent.serializer, msg)
 	}
 }
 
-func (h *LocalHandler) handleWS(conn *websocket.Conn) {
+func (h *LocalHandler) handleWS(conn *websocket.Conn, pcodec frame.PacketCodec) {
 	c, err := newWSConn(conn)
 	if err != nil {
 		log.Println(err)
 		return
 	}
-	go h.handle(c)
+	go h.handle(c, pcodec)
 }
 
-func (h *LocalHandler) localProcess(handler *component.Handler, lastMid uint64, session *session.Session, msg *message.Message) {
+func (h *LocalHandler) localProcess(handler *component.Handler, lastMid uint64, session *session.Session, serializer serialize.Serializer, msg *message.Message) {
 	if pipe := h.pipeline; pipe != nil {
 		err := pipe.Inbound().Process(session, msg)
 		if err != nil {
@@ -478,7 +483,10 @@ func (h *LocalHandler) localProcess(handler *component.Handler, lastMid uint64, 
 		data = payload
 	} else {
 		data = reflect.New(handler.Type.Elem()).Interface()
-		err := env.Serializer.Unmarshal(payload, data)
+		if serializer == nil {
+			serializer = env.Serializer
+		}
+		err := serializer.Unmarshal(payload, data)
 		if err != nil {
 			log.Println(fmt.Sprintf("Deserialize to %T failed: %+v (%v)", data, err, payload))
 			return

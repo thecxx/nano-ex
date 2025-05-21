@@ -105,7 +105,7 @@ func (c *Group) Multicast(route string, v interface{}, filter SessionFilter) err
 		return ErrClosedGroup
 	}
 
-	data, err := message.Serialize(v)
+	data, err := message.Serialize(v, nil)
 	if err != nil {
 		return err
 	}
@@ -135,7 +135,7 @@ func (c *Group) Broadcast(route string, v interface{}) error {
 		return ErrClosedGroup
 	}
 
-	data, err := message.Serialize(v)
+	data, err := message.Serialize(v, nil)
 	if err != nil {
 		return err
 	}

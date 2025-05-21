@@ -58,7 +58,8 @@ type Options struct {
 	UnregisterCallback func(Member)
 	RemoteServiceRoute CustomerRemoteServiceRoute
 	// Custom packet encoder/decoder
-	PacketCodec frame.PacketCodec
+	PacketCodec  frame.PacketCodec
+	PrivateCodec map[string]frame.PacketCodec
 }
 
 // Node represents a node in nano cluster, which will contains a group of services.
@@ -249,7 +250,7 @@ func (n *Node) listenAndServe() {
 			continue
 		}
 
-		go n.handler.handle(conn)
+		go n.handler.handle(conn, nil)
 	}
 }
 
@@ -260,15 +261,25 @@ func (n *Node) listenAndServeWS() {
 		CheckOrigin:     env.CheckOrigin,
 	}
 
-	http.HandleFunc("/"+strings.TrimPrefix(env.WSPath, "/"), func(w http.ResponseWriter, r *http.Request) {
-		conn, err := upgrader.Upgrade(w, r, nil)
-		if err != nil {
-			log.Println(fmt.Sprintf("Upgrade failure, URI=%s, Error=%s", r.RequestURI, err.Error()))
-			return
-		}
+	handle := func(path string, pcodec frame.PacketCodec) {
+		http.HandleFunc("/"+strings.TrimPrefix(path, "/"), func(w http.ResponseWriter, r *http.Request) {
+			conn, err := upgrader.Upgrade(w, r, nil)
+			if err != nil {
+				log.Println(fmt.Sprintf("Upgrade failure, URI=%s, Error=%s", r.RequestURI, err.Error()))
+				return
+			}
 
-		n.handler.handleWS(conn)
-	})
+			n.handler.handleWS(conn, pcodec)
+		})
+	}
+
+	if len(n.PrivateCodec) <= 0 {
+		handle(env.WSPath, nil)
+	} else {
+		for path, pcodec := range n.PrivateCodec {
+			handle(path, pcodec)
+		}
+	}
 
 	if err := http.ListenAndServe(n.ClientAddr, nil); err != nil {
 		log.Fatal(err.Error())
@@ -282,15 +293,25 @@ func (n *Node) listenAndServeWSTLS() {
 		CheckOrigin:     env.CheckOrigin,
 	}
 
-	http.HandleFunc("/"+strings.TrimPrefix(env.WSPath, "/"), func(w http.ResponseWriter, r *http.Request) {
-		conn, err := upgrader.Upgrade(w, r, nil)
-		if err != nil {
-			log.Println(fmt.Sprintf("Upgrade failure, URI=%s, Error=%s", r.RequestURI, err.Error()))
-			return
-		}
+	handle := func(path string, pcodec frame.PacketCodec) {
+		http.HandleFunc("/"+strings.TrimPrefix(path, "/"), func(w http.ResponseWriter, r *http.Request) {
+			conn, err := upgrader.Upgrade(w, r, nil)
+			if err != nil {
+				log.Println(fmt.Sprintf("Upgrade failure, URI=%s, Error=%s", r.RequestURI, err.Error()))
+				return
+			}
 
-		n.handler.handleWS(conn)
-	})
+			n.handler.handleWS(conn, pcodec)
+		})
+	}
+
+	if len(n.PrivateCodec) <= 0 {
+		handle(env.WSPath, nil)
+	} else {
+		for path, pcodec := range n.PrivateCodec {
+			handle(path, pcodec)
+		}
+	}
 
 	if err := http.ListenAndServeTLS(n.ClientAddr, n.TSLCertificate, n.TSLKey, nil); err != nil {
 		log.Fatal(err.Error())
@@ -349,7 +370,7 @@ func (n *Node) HandleRequest(_ context.Context, req *clusterpb.RequestMessage) (
 		Route: req.Route,
 		Data:  req.Data,
 	}
-	n.handler.localProcess(handler, req.Id, s, msg)
+	n.handler.localProcess(handler, req.Id, s, nil, msg)
 	return &clusterpb.MemberHandleResponse{}, nil
 }
 
@@ -367,7 +388,7 @@ func (n *Node) HandleNotify(_ context.Context, req *clusterpb.NotifyMessage) (*c
 		Route: req.Route,
 		Data:  req.Data,
 	}
-	n.handler.localProcess(handler, 0, s, msg)
+	n.handler.localProcess(handler, 0, s, nil, msg)
 	return &clusterpb.MemberHandleResponse{}, nil
 }
 

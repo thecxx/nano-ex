@@ -2,6 +2,7 @@ package frame
 
 import (
 	"github.com/lonng/nano/internal/message"
+	"github.com/lonng/nano/serialize"
 )
 
 const (
@@ -24,6 +25,9 @@ type PacketProcessor interface {
 }
 
 type PacketCodec interface {
-	// NewProcessor NewProcessor returns a new instance for handling package parsing.
+	// NewProcessor returns a new instance for handling package parsing.
 	NewProcessor() PacketProcessor
+
+	// Serializer returns a serializer.
+	Serializer() serialize.Serializer
 }

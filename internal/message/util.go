@@ -20,13 +20,19 @@
 
 package message
 
-import "github.com/lonng/nano/internal/env"
+import (
+	"github.com/lonng/nano/internal/env"
+	"github.com/lonng/nano/serialize"
+)
 
-func Serialize(v interface{}) ([]byte, error) {
+func Serialize(v interface{}, serializer serialize.Serializer) ([]byte, error) {
 	if data, ok := v.([]byte); ok {
 		return data, nil
 	}
-	data, err := env.Serializer.Marshal(v)
+	if serializer == nil {
+		serializer = env.Serializer
+	}
+	data, err := serializer.Marshal(v)
 	if err != nil {
 		return nil, err
 	}
