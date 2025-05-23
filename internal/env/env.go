@@ -51,6 +51,7 @@ var (
 	Serializer serialize.Serializer
 
 	GrpcOptions = []grpc.DialOption{grpc.WithInsecure()}
+	SessionMonitor session.Monitor
 )
 
 func init() {

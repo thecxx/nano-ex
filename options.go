@@ -145,6 +145,13 @@ func WithSerializer(serializer serialize.Serializer) Option {
 	}
 }
 
+// WithSessionMonitor sets a session monitor to handle events like session creation and closure.
+func WithSessionMonitor(monitor session.Monitor) Option {
+	return func(opt *cluster.Options) {
+		env.SessionMonitor = monitor
+	}
+}
+
 // WithLabel sets the current node label in cluster
 func WithLabel(label string) Option {
 	return func(opt *cluster.Options) {

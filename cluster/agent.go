@@ -259,12 +259,14 @@ func (a *agent) write() {
 	for {
 		select {
 		case <-ticker.C:
-			deadline := time.Now().Add(-2 * env.Heartbeat).Unix()
-			if atomic.LoadInt64(&a.lastAt) < deadline {
-				log.Println(fmt.Sprintf("Session heartbeat timeout, LastTime=%d, Deadline=%d", atomic.LoadInt64(&a.lastAt), deadline))
-				return
+			if a.pcodec == nil {
+				deadline := time.Now().Add(-2 * env.Heartbeat).Unix()
+				if atomic.LoadInt64(&a.lastAt) < deadline {
+					log.Println(fmt.Sprintf("Session heartbeat timeout, LastTime=%d, Deadline=%d", atomic.LoadInt64(&a.lastAt), deadline))
+					return
+				}
+				chWrite <- hbd
 			}
-			chWrite <- hbd
 
 		case data := <-chWrite:
 			// close agent while low-level conn broken

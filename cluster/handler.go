@@ -214,6 +214,10 @@ func (h *LocalHandler) handle(conn net.Conn, pcodec frame.PacketCodec) {
 
 	h.currentNode.storeSession(agent.session)
 
+	if env.SessionMonitor != nil {
+		env.SessionMonitor.OnCreate(agent.session)
+	}
+
 	// startup write goroutine
 	go agent.write()
 
@@ -244,6 +248,10 @@ func (h *LocalHandler) handle(conn net.Conn, pcodec frame.PacketCodec) {
 			if env.Debug {
 				log.Println("Notify remote server success", remote)
 			}
+		}
+
+		if env.SessionMonitor != nil {
+			env.SessionMonitor.OnClose(agent.session)
 		}
 
 		agent.Close()
